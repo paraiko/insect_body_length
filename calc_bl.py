@@ -1,6 +1,5 @@
 import json
 import sys
-
 import pandas as pd
 import numpy as np
 from itertools import combinations
@@ -8,6 +7,7 @@ from shapely.geometry import Polygon
 import matplotlib.pyplot as plt
 import os
 from pathlib import Path
+import cv2
 #from shapely.algorithms import polylabel
 
 # assign directory
@@ -25,26 +25,58 @@ else:
     #os.walk yields tuple with rootpath, subdirs and filenames in path
     # giving file extension
     validExt = ('.png', '.jpg', '.tif', '.bmp')
-    for root, subdirs, files in os.walk(imgPath):
+    for root, subdirs, files in os.walk(jsonPath):
         for fn in files:
-            # todo for now no magic to make the script safe, just assume the files are there, crash bigtime if not.
-            imgF = os.path.join(root, fn)
+            # todo: Add magic to make the script safe, for now just assume the files are there, crash bigtime if not.
+            jsonF = os.path.join(root, fn)
 
-            # process all image file types
-            if fn.endswith(validExt):
-                # remove the extension from the name (Path.stem()) and set the Json file path
-                jsonF = jsonPath + Path(imgF).stem + ".json"
-                print(imgF)
-                print(jsonF)
-                # todo maybe split the name on "_" to separate NOUS id and original filename.
+            # process all json files
+            if fn.endswith('.json'):
+                print("processing: " + jsonF)
+                # Split the name on "_" to separate NOUS id and original filename.
+                fnSplits = fn.split('_')
+                maxI = len(fnSplits)-1
+                origImgF = ""
+                # Rebuild original filename
+                for i in range(0, maxI):
+                    if i == 0:
+                        origImgF = fnSplits[i]
+                    else:
+                        origImgF += "_" + fnSplits[i]
+                print(origImgF)
 
+                # parse the json annotations into a huge dict.
+                # todo: add checks on validity and success.
                 with open(jsonF) as f:
                     annot = json.load(f)
 
-                # todo get the original filename from the filename-path for reference
-
-                # get the nous id for the image/annotation combination
+                # get the nous id and the image id for the image/annotation combination from the json
                 nousId = annot.get('id')
+                imgId = annot.get('image_id')
+
+                # remove the extension from the name (Path.stem()) and set the Json file path \
+                # ImgBaseName = imgPath + Path(jsonF).stem
+
+                # Reconstruct the image filename and guess the extension.
+                imgBaseName = imgPath + origImgF + "_" + imgId
+                img = cv2.imread(imgBaseName + ".jpg")
+                # check if image read was successful and try .png if not, etc.
+                if not np.any(img):
+                    img = cv2.imread(imgBaseName + ".png")
+                elif not np.any(img):
+                    img = cv2.imread(imgBaseName + ".tif")
+                elif not np.any(img):
+                    img = cv2.imread(imgBaseName + ".tiff")
+                elif not np.any(img):
+                    img = cv2.imread(imgBaseName + ".bmp")
+                elif not np.any(img):
+                    print(" cannot find file fName")
+                    break
+
+                print(img.shape)
+
+
+
 
                 # count the nr of segmentation annotations in the file
                 nrAnnot = (len(annot['data']))
