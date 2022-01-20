@@ -10,9 +10,11 @@ from pathlib import Path
 import cv2
 #from shapely.algorithms import polylabel
 
+safeOutputImg = True
+
 # assign directory
 if len(sys.argv) <= 1:
-    print("Specify an inputpath as the first argument. \n" + \
+    print("Specify an input path as the first argument. \n" + \
           "The script expects a folder <images> with image files \n" + \
           "and a folder <annotations> with NOUS json annotations of those images.")
 else:
@@ -20,6 +22,11 @@ else:
     print(inputPath)
     imgPath = inputPath + "images/"
     jsonPath = inputPath + "annotation/"
+
+    if safeOutputImg:
+        path = imgPath + "output/"
+        if not (os.path.exists(path) and os.path.isdir(path)):
+            os.mkdir(path)
 
     # iterate over files in imgInputPath
     #os.walk yields tuple with rootpath, subdirs and filenames in path
@@ -59,25 +66,35 @@ else:
 
                 # Reconstruct the image filename and guess the extension.
                 imgBaseName = imgPath + origImgF + "_" + imgId
-                img = cv2.imread(imgBaseName + ".jpg")
+                print(imgBaseName)
+                ext = '.jpg'
+                imgName = imgBaseName + ext
+                img = cv2.imread(imgName)
                 # check if image read was successful and try .png if not, etc.
                 if not np.any(img):
-                    img = cv2.imread(imgBaseName + ".png")
+                    ext = '.png'
+                    imgName = imgBaseName + ext
+                    img = cv2.imread(imgName)
                 elif not np.any(img):
-                    img = cv2.imread(imgBaseName + ".tif")
+                    ext = '.tif'
+                    imgName = imgBaseName + ext
+                    img = cv2.imread(imgName)
                 elif not np.any(img):
-                    img = cv2.imread(imgBaseName + ".tiff")
+                    ext = '.tiff'
+                    imgName = imgBaseName + ext
+                    img = cv2.imread(imgName)
                 elif not np.any(img):
-                    img = cv2.imread(imgBaseName + ".bmp")
+                    ext = '.bmp'
+                    imgName = imgBaseName + ext
+                    img = cv2.imread(imgName)
                 elif not np.any(img):
                     print(" cannot find file fName")
                     break
 
-                print(img.shape)
-
-
-
-
+                imgY = img.shape[0]
+                imgX = img.shape[1]
+                imgDim = [imgX, imgY]
+                print(imgDim)
                 # count the nr of segmentation annotations in the file
                 nrAnnot = (len(annot['data']))
 
@@ -104,8 +121,31 @@ else:
                     print(centroid)
                     vm = np.array(centroid)
                     x, y = zip(v1, vm, v2)
-                    plt.scatter(x, y)
-                    plt.show()
+
+                    # draw the detect points and lines on the image.
+                    print(type(v1))
+                    imgDim = np.array(imgDim)
+                    v1 = v1 * imgDim
+                    v1 = v1.astype(int)
+                    vm = vm * imgDim
+                    vm = vm.astype(int)
+                    v2 = v2 * imgDim
+                    v2 = v2.astype(int)
+
+                    newImg = cv2.circle(img, v1, radius=3, color=(0, 0, 255), thickness=-1)
+                    newImg = cv2.circle(newImg, vm, radius=3, color=(0, 255, 0), thickness=-1)
+                    newImg = cv2.circle(newImg, v2, radius=3, color=(255, 0, 0), thickness=-1)
+                    newIMG = cv2.line(newImg, v1, vm, (255, 255, 255), thickness=1)
+                    newIMG = cv2.line(newImg, vm, v2, (255, 255, 255), thickness=1)
+                    cv2.imshow('with points', newImg)
+                    cv2.waitKey(3000)
+                    cv2.destroyAllWindows()
+                    if safeOutputImg:
+                        newImgName = imgPath + "output/" + origImgF + "_" + imgId + len" + ext
+                        print('newImgname: '+ newImgName)
+                        cv2.imwrite(newImgName, newImg)
+                    #plt.scatter(x, y)
+                    #plt.show()
 
                 elif nrAnnot > 1:
                     # todo ideally there is only one, otherwise assume the biggest (by polygon vertices count) is the correct one.
