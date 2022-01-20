@@ -204,7 +204,6 @@ else:
                     FileName = imgBase + ext
                     outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, np.nan, \
                                                              'no annotations']
-
     print(outputData)
     opFile = outputPath + 'insectBodyLengths.xlsx'
     outputData.to_excel(opFile, sheet_name='bodylengths')
