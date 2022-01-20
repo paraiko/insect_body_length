@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "bodylen"
+version = "0.1.0"
+description = ""
+authors = ["A.S. <paraiko@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+numpy = "^1.22.1"
+pandas = "^1.3.5"
+Shapely = "^1.8.0"
+scipy = "^1.7.3"
+matplotlib = "^3.5.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
