@@ -8,28 +8,35 @@ from shapely.geometry import Polygon
 import os
 import cv2
 import openpyxl
-
 # from shapely.algorithms import polylabel
 
+
+##---------------------------------
+#default calibration for px top mm:
+# 941px = 20mm
+#1px = 0,021253985 mm
+pxToMmCal = 0.021253985
+###--------------------------------
 # show the detection points drawn on the image during scripting
-imgShow = True
+imgShow = False
 # save the images with detection points drawn on the image in a separate folder
 safeOutputImg = True
 
 outputData = pd.DataFrame(
-    columns=['FileName', 'NousAnnotationId', 'shapeId', 'BodyLengthPx', 'BodySurfacePx', 'Remark'])
+    columns=['FileName', 'NousAnnotationId', 'shapeId', 'BodyLengthPx', 'BodyLengthMm(1200dpi)''BodySurfacePx', 'Remark'])
 
 # assign directory
 if len(sys.argv) <= 2:
     print('Specify an input path as the first argument and output path as the second. \n\n' + \
           'On the input path The script expects a folder <images> containing image files \n' + \
-          'and a folder <annotations> with NOUS json annotations of those images. \n\n' + \
+          'and a folder <annotations> or <predictions> with NOUS json annotations of those images. \n\n' + \
           'On the output path the output file will be written and a folder with op images if selected.')
 else:
     inputPath = sys.argv[1]
     print(inputPath)
     imgPath = inputPath + 'images/'
     jsonPath = inputPath + 'annotation/'
+    #jsonPath = inputPath + 'prediction/'
 
     outputPath = sys.argv[2]
     print(outputPath)
@@ -133,6 +140,11 @@ else:
                     print(v2)
 
                     # get the center of gravity
+                    # todo probably change C0G/centroid to polylabel.
+                    # --> CoG can be outside the polygon, polylabel should find the best CoG inside the polygon.
+                    # --> might yield better results with big and strongly curved insects, such as Dragonflies.
+                    # https://github.com/mapbox/polylabel
+
                     p = Polygon(np.array(vertices))
                     centroid = p.centroid
                     print(centroid)
@@ -147,12 +159,14 @@ else:
                     len1 = np.linalg.norm(v1 - vm)
                     len2 = np.linalg.norm(vm - v2)
                     bodyLenPx = len2 + len1
-                    print('bodylength in pixels = ' + str(bodyLenPx))
+                    print('body length in pixels = ' + str(bodyLenPx))
+                    bodyLenMm = bodyLenPx * pxToMmCal
 
                     # todo Implement calculation of the polygon surface area.
+
                     # generate output
                     FileName = imgBase + ext
-                    outputData.loc[len(outputData.index)] = [FileName, nousId, annotId, bodyLenPx, np.nan, '']
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, annotId, bodyLenPx, bodyLenMm, np.nan, '']
 
                     # Draw the detection points and lines on the image.
                     v1 = v1.astype(int)
@@ -177,18 +191,20 @@ else:
                     # plt.show()
 
                 elif nrAnnot > 1:
-                    # todo ideally there is only one, otherwise assume the biggest (by polygon vertices count) is the correct one.
+                    # todo on multipel roi's: assume the biggest (by polygon vertices count) is the correct one.
                     # for now just make a remark in the output and do nothing :-(
                     print('more than 1 annotation')
                     # pd.DataFrame(columns=['FileName', 'NousImageId', 'AnnotationId', 'BodyLengthPx', 'BodySurfacePx'], 'Remark')
                     FileName = imgBase + ext
-                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, 'more than one annotation']
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, np.nan, \
+                                                             'more than one annotation']
 
                 else:
-                    # todo, this might still crash, if empty annotations enerate a json [data] object....
+                    # todo, this might still crash, if empty annotations generate a json [data] object....
                     print('no annotations')
                     FileName = imgBase + ext
-                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, 'no annotations']
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, np.nan, \
+                                                             'no annotations']
 
     print(outputData)
     opFile = outputPath + 'insectBodyLengths.xlsx'
