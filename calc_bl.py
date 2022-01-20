@@ -4,32 +4,45 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 from shapely.geometry import Polygon
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import os
-from pathlib import Path
 import cv2
-#from shapely.algorithms import polylabel
+import openpyxl
 
+# from shapely.algorithms import polylabel
+
+# show the detection points drawn on the image during scripting
+imgShow = True
+# save the images with detection points drawn on the image in a separate folder
 safeOutputImg = True
 
+outputData = pd.DataFrame(
+    columns=['FileName', 'NousAnnotationId', 'shapeId', 'BodyLengthPx', 'BodySurfacePx', 'Remark'])
+
 # assign directory
-if len(sys.argv) <= 1:
-    print("Specify an input path as the first argument. \n" + \
-          "The script expects a folder <images> with image files \n" + \
-          "and a folder <annotations> with NOUS json annotations of those images.")
+if len(sys.argv) <= 2:
+    print('Specify an input path as the first argument and output path as the second. \n\n' + \
+          'On the input path The script expects a folder <images> containing image files \n' + \
+          'and a folder <annotations> with NOUS json annotations of those images. \n\n' + \
+          'On the output path the output file will be written and a folder with op images if selected.')
 else:
     inputPath = sys.argv[1]
     print(inputPath)
-    imgPath = inputPath + "images/"
-    jsonPath = inputPath + "annotation/"
+    imgPath = inputPath + 'images/'
+    jsonPath = inputPath + 'annotation/'
+
+    outputPath = sys.argv[2]
+    print(outputPath)
+    if not (os.path.exists(outputPath) and os.path.isdir(outputPath)):
+        os.mkdir(outputPath)
 
     if safeOutputImg:
-        path = imgPath + "output/"
-        if not (os.path.exists(path) and os.path.isdir(path)):
-            os.mkdir(path)
+        imgOutputPath = outputPath + "images/"
+        if not (os.path.exists(imgOutputPath) and os.path.isdir(imgOutputPath)):
+            os.mkdir(imgOutputPath)
 
     # iterate over files in imgInputPath
-    #os.walk yields tuple with rootpath, subdirs and filenames in path
+    # os.walk yields tuple with rootpath, subdirs and filenames in path
     # giving file extension
     validExt = ('.png', '.jpg', '.tif', '.bmp')
     for root, subdirs, files in os.walk(jsonPath):
@@ -42,7 +55,7 @@ else:
                 print("processing: " + jsonF)
                 # Split the name on "_" to separate NOUS id and original filename.
                 fnSplits = fn.split('_')
-                maxI = len(fnSplits)-1
+                maxI = len(fnSplits) - 1
                 origImgF = ""
                 # Rebuild original filename
                 for i in range(0, maxI):
@@ -65,7 +78,8 @@ else:
                 # ImgBaseName = imgPath + Path(jsonF).stem
 
                 # Reconstruct the image filename and guess the extension.
-                imgBaseName = imgPath + origImgF + "_" + imgId
+                imgBase = origImgF + "_" + imgId
+                imgBaseName = imgPath + imgBase
                 print(imgBaseName)
                 ext = '.jpg'
                 imgName = imgBaseName + ext
@@ -99,10 +113,12 @@ else:
                 nrAnnot = (len(annot['data']))
 
                 if nrAnnot == 1:
-                    #labelId = each.get('id')
+                    # Get the NOUS annotation id, to separate muliple annotations later
+                    annotId = annot.get('data')[0].get('id')
+                    # get the polygon vertices from the json objext
                     vertices = pd.DataFrame(annot.get('data')[0].get('shapes')[0].get('geometry')['points'])
-                    nv = np.array(vertices)
-                    #print(nv)
+
+                    # Find the the vertices on the polygon that are the furthest apart
                     current_max = 0
                     v1 = [0, 0]
                     v2 = [0, 0]
@@ -112,47 +128,68 @@ else:
                             current_max = current_distance
                             v1 = a
                             v2 = b
-                            #print(current_max)
+                            # print(current_max)
                     print(v1)
                     print(v2)
 
-                    p = Polygon(nv)
+                    # get the center of gravity
+                    p = Polygon(np.array(vertices))
                     centroid = p.centroid
                     print(centroid)
                     vm = np.array(centroid)
-                    x, y = zip(v1, vm, v2)
+                    # x, y = zip(v1, vm, v2)
 
-                    # draw the detect points and lines on the image.
-                    print(type(v1))
+                    # Calculate body length as the sum of the lengths of the lines from the edges to the CoG in pixels.
                     imgDim = np.array(imgDim)
                     v1 = v1 * imgDim
-                    v1 = v1.astype(int)
                     vm = vm * imgDim
-                    vm = vm.astype(int)
                     v2 = v2 * imgDim
-                    v2 = v2.astype(int)
+                    len1 = np.linalg.norm(v1 - vm)
+                    len2 = np.linalg.norm(vm - v2)
+                    bodyLenPx = len2 + len1
+                    print('bodylength in pixels = ' + str(bodyLenPx))
 
+                    # todo Implement calculation of the polygon surface area.
+                    # generate output
+                    FileName = imgBase + ext
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, annotId, bodyLenPx, np.nan, '']
+
+                    # Draw the detection points and lines on the image.
+                    v1 = v1.astype(int)
+                    vm = vm.astype(int)
+                    v2 = v2.astype(int)
                     newImg = cv2.circle(img, v1, radius=3, color=(0, 0, 255), thickness=-1)
                     newImg = cv2.circle(newImg, vm, radius=3, color=(0, 255, 0), thickness=-1)
                     newImg = cv2.circle(newImg, v2, radius=3, color=(255, 0, 0), thickness=-1)
                     newIMG = cv2.line(newImg, v1, vm, (255, 255, 255), thickness=1)
                     newIMG = cv2.line(newImg, vm, v2, (255, 255, 255), thickness=1)
-                    cv2.imshow('with points', newImg)
-                    cv2.waitKey(3000)
-                    cv2.destroyAllWindows()
+
+                    if imgShow:
+                        cv2.imshow('with points', newImg)
+                        cv2.waitKey(1200)
+                        cv2.destroyAllWindows()
+
                     if safeOutputImg:
-                        newImgName = imgPath + "output/" + origImgF + "_" + imgId + len" + ext
-                        print('newImgname: '+ newImgName)
+                        newImgName = imgOutputPath + origImgF + '_' + imgId + '_' + annotId + ext
+                        print('newImgname: ' + newImgName)
                         cv2.imwrite(newImgName, newImg)
-                    #plt.scatter(x, y)
-                    #plt.show()
+                    # plt.scatter(x, y)
+                    # plt.show()
 
                 elif nrAnnot > 1:
                     # todo ideally there is only one, otherwise assume the biggest (by polygon vertices count) is the correct one.
-                    # for now just take the first one... :-(
-                    print("more than 1 annotation")
+                    # for now just make a remark in the output and do nothing :-(
+                    print('more than 1 annotation')
+                    # pd.DataFrame(columns=['FileName', 'NousImageId', 'AnnotationId', 'BodyLengthPx', 'BodySurfacePx'], 'Remark')
+                    FileName = imgBase + ext
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, 'more than one annotation']
+
                 else:
-                    print("no annotations")
-                    # todo some magic here
+                    # todo, this might still crash, if empty annotations enerate a json [data] object....
+                    print('no annotations')
+                    FileName = imgBase + ext
+                    outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, 'no annotations']
 
-
+    print(outputData)
+    opFile = outputPath + 'insectBodyLengths.xlsx'
+    outputData.to_excel(opFile, sheet_name='bodylengths')
