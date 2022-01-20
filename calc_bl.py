@@ -23,7 +23,7 @@ imgShow = False
 safeOutputImg = True
 
 outputData = pd.DataFrame(
-    columns=['FileName', 'NousAnnotationId', 'shapeId', 'BodyLengthPx', 'BodyLengthMm(1200dpi)''BodySurfacePx', 'Remark'])
+    columns=['FileName', 'NousAnnotationId', 'shapeId', 'BodyLengthPx', 'BodyLengthMm(1200dpi)', 'BodySurfacePx', 'Remark'])
 
 # assign directory
 if len(sys.argv) <= 2:
@@ -194,7 +194,6 @@ else:
                     # todo on multipel roi's: assume the biggest (by polygon vertices count) is the correct one.
                     # for now just make a remark in the output and do nothing :-(
                     print('more than 1 annotation')
-                    # pd.DataFrame(columns=['FileName', 'NousImageId', 'AnnotationId', 'BodyLengthPx', 'BodySurfacePx'], 'Remark')
                     FileName = imgBase + ext
                     outputData.loc[len(outputData.index)] = [FileName, nousId, np.nan, np.nan, np.nan, np.nan, \
                                                              'more than one annotation']
